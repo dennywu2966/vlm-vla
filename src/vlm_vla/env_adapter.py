@@ -14,7 +14,7 @@ class ActionSpaceConfig:
     V4: 30D+ (humanoid full body)
     """
     dims: int = 7
-    groups: dict = None  # e.g. {"arm": 6, "gripper": 1}
+    groups: dict | None = None  # e.g. {"arm": 6, "gripper": 1}
     normalize: bool = True
     action_range: tuple = (-1.0, 1.0)
 
