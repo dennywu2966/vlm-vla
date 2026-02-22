@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+*.hprof
+*.log
+*.so
+*.jar
+wandb/
+outputs/
+checkpoints/
+.env
