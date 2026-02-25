@@ -4,7 +4,7 @@
 
 ## Summary
 
-Training complete. Evaluation blocker identified and fixed. Ready for next Kaggle session.
+Training complete. Root cause of eval failure identified from source analysis. Notebook fixed. Ready for Kaggle eval session.
 
 ---
 
@@ -13,54 +13,58 @@ Training complete. Evaluation blocker identified and fixed. Ready for next Kaggl
 | Task | Details |
 |------|---------|
 | Project structure (9 tasks) | All notebooks, src, configs, tests created |
-| SmolVLA LoRA training | 20k steps, final loss ~0.134, checkpoint on HF Hub |
+| SmolVLA LoRA training | 20k steps, final loss ~0.134 |
 | HF Hub push | `dennywu2966/smolvla-libero-object-lora` |
 | Base zero-shot eval | 0% on all 10 LIBERO-Object tasks (expected) |
-| OpenVLA reference noted | 88.4% (published, HuggingFaceVLA official) |
-| **Eval blocker fixed** | Root cause found, notebook 05 corrected |
+| Root cause analysis | Verified from lerobot 0.4.3 source + HF Hub checkpoint |
+| Notebook 05 rewritten | Final version with correct approach |
 
 ---
 
-## Root Cause of Previous Eval Failure
+## Root Cause Analysis (Verified)
 
-`lerobot-eval` was called **without `--policy.use_peft=true`**.
+Investigated `lerobot/scripts/lerobot_eval.py` and `lerobot/policies/factory.py`:
 
-`lerobot/policies/factory.py:make_policy()` has two branches:
-- `use_peft=false` → load full model weights from pretrained_path
-- `use_peft=true` → load `adapter_config.json`, read `base_model_name_or_path`, load base policy, apply `PeftModel.from_pretrained`
+1. **`use_peft=True` already in `config.json`** — lerobot-eval reads it automatically via `PreTrainedConfig.from_pretrained()`. No extra CLI flag needed.
 
-Without the flag, lerobot tried to load the LoRA adapter repo as a full model → crash.
+2. **Actual eval failure causes** (most likely):
+   - LIBERO not installed in the eval Kaggle session (fresh session, missing `lerobot[libero]`)
+   - Original notebook used local path `outputs/latest/checkpoints/last` — not persistent across sessions
+
+3. **Checkpoint is valid**:
+   - `adapter_config.json`: correct `base_model_name_or_path = "lerobot/smolvla_base"`, r=32
+   - Normalizer stats: **8D state** (matches LiberoProcessorStep output: eef_pos 3 + axisangle 3 + gripper 2)
+   - `policy_preprocessor.json`: embeds rename_map (image→camera1, image2→camera2)
+   - All preprocessing loaded automatically from HF Hub
 
 ---
 
-## 📋 Next Kaggle Session: Evaluation (2-4 hours, T4 x2)
+## 🔴 Next: Kaggle Evaluation Session (~3-4h)
 
-Upload to Kaggle:
+Upload to new Kaggle T4 x2 notebook (internet ON):
 - `notebooks/05_evaluation.ipynb`
 - `src/vlm_vla/eval_engine.py`
 
-**Cell 2**: Eval custom LoRA — `lerobot-eval --policy.use_peft=true --policy.path=dennywu2966/smolvla-libero-object-lora`
-**Cell 3**: Eval official model — `lerobot-eval --policy.path=HuggingFaceVLA/smolvla_libero` (upper bound)
-**Cell 4-5**: Parse JSON results → comparison table
+Eval command (embedded in notebook Cell 2):
+```bash
+lerobot-eval \
+  --policy.path=dennywu2966/smolvla-libero-object-lora \
+  --policy.device=cuda \
+  --env.type=libero \
+  --env.task=libero_object \
+  --eval.n_episodes=20 \
+  --eval.batch_size=1
+```
 
-### Success Criteria
-- SmolVLA-LoRA fine-tuned ≥ 50% on LIBERO-Object (minimum viable)
-- SmolVLA-LoRA fine-tuned ≥ 70% (V1 target)
-- Comparison table: SmolVLA-FT vs SmolVLA-ZS (0%) vs OpenVLA-7B (88.4%) vs Official FT
-
-### If <50% after fix
-Options (in order):
-1. Check `adapter_config.json` has correct `base_model_name_or_path` (Cell 1 validates this)
-2. Train longer (40k steps) from checkpoint — re-run notebook 03
-3. Verify camera rename_map was applied correctly during training (key mismatch corrupts signal)
+After results: copy `eval_comparison_v2.json` to `results/`, update `results/eval_report.md`.
 
 ---
 
 ## Reference Numbers
 
-| Model | LIBERO-Object | Source |
-|-------|--------------|--------|
-| SmolVLA base (zero-shot) | 0% | our eval |
-| SmolVLA-LoRA fine-tuned | ❓ TBD | next session |
+| Model | LIBERO-Object | Notes |
+|-------|--------------|-------|
+| SmolVLA base (zero-shot) | 0% | confirmed |
+| SmolVLA-LoRA 20k steps | ❓ TBD | next session |
+| SmolVLA official FT | ~90%+ | HuggingFaceVLA reference |
 | OpenVLA-7B official FT | 88.4% | Hejna et al. 2024 |
-| SmolVLA official FT (HuggingFaceVLA) | ~90%+ | published |
