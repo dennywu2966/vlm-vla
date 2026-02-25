@@ -4,7 +4,7 @@
 
 ## Summary
 
-Training complete, evaluation blocked. Need to fix LoRA eval approach.
+Training complete. Evaluation blocker identified and fixed. Ready for next Kaggle session.
 
 ---
 
@@ -17,44 +17,42 @@ Training complete, evaluation blocked. Need to fix LoRA eval approach.
 | HF Hub push | `dennywu2966/smolvla-libero-object-lora` |
 | Base zero-shot eval | 0% on all 10 LIBERO-Object tasks (expected) |
 | OpenVLA reference noted | 88.4% (published, HuggingFaceVLA official) |
+| **Eval blocker fixed** | Root cause found, notebook 05 corrected |
 
 ---
 
-## ❌ Blocker: LoRA Eval Fails
+## Root Cause of Previous Eval Failure
 
-**Root cause**: `lerobot-eval --policy.path=<lora_checkpoint>` loads only adapter weights; the CLI doesn't know to merge them with the base model first. Crashes silently or times out.
+`lerobot-eval` was called **without `--policy.use_peft=true`**.
 
-Tested:
-- `dennywu2966/smolvla-libero-object-lora` → failed
-- `HuggingFaceVLA/smolvla_libero` → also failed (same CLI issue)
+`lerobot/policies/factory.py:make_policy()` has two branches:
+- `use_peft=false` → load full model weights from pretrained_path
+- `use_peft=true` → load `adapter_config.json`, read `base_model_name_or_path`, load base policy, apply `PeftModel.from_pretrained`
 
-**Fix**: Merge LoRA into base model first (PEFT `merge_and_unload()`), save merged weights, then eval. Notebook 05 needs rewriting.
+Without the flag, lerobot tried to load the LoRA adapter repo as a full model → crash.
 
 ---
 
-## 📋 Execution Plan (Next Kaggle Session)
-
-### Session: Fix Evaluation (2-4 hours, T4 x2)
+## 📋 Next Kaggle Session: Evaluation (2-4 hours, T4 x2)
 
 Upload to Kaggle:
-- `notebooks/05_evaluation.ipynb` (after fix below)
+- `notebooks/05_evaluation.ipynb`
 - `src/vlm_vla/eval_engine.py`
 
-**Step 1**: Merge LoRA → full model, save locally
-**Step 2**: Run `lerobot-eval` on merged model
-**Step 3**: Parse results → build comparison table
-**Step 4**: Push merged model to HF Hub as `dennywu2966/smolvla-libero-object-merged`
+**Cell 2**: Eval custom LoRA — `lerobot-eval --policy.use_peft=true --policy.path=dennywu2966/smolvla-libero-object-lora`
+**Cell 3**: Eval official model — `lerobot-eval --policy.path=HuggingFaceVLA/smolvla_libero` (upper bound)
+**Cell 4-5**: Parse JSON results → comparison table
 
 ### Success Criteria
-- SmolVLA fine-tuned ≥ 50% on LIBERO-Object (minimum viable)
-- SmolVLA fine-tuned ≥ 70% (V1 target)
-- Comparison table: SmolVLA-FT vs SmolVLA-ZS (0%) vs OpenVLA-7B (88.4%)
+- SmolVLA-LoRA fine-tuned ≥ 50% on LIBERO-Object (minimum viable)
+- SmolVLA-LoRA fine-tuned ≥ 70% (V1 target)
+- Comparison table: SmolVLA-FT vs SmolVLA-ZS (0%) vs OpenVLA-7B (88.4%) vs Official FT
 
 ### If <50% after fix
-Options:
-1. Train longer (40k steps) — re-run notebook 03 from checkpoint
-2. Lower LoRA rank to r=16 and retrain (less overfitting risk)
-3. Check if rename_map was applied correctly during training (camera key mismatch could corrupt training signal)
+Options (in order):
+1. Check `adapter_config.json` has correct `base_model_name_or_path` (Cell 1 validates this)
+2. Train longer (40k steps) from checkpoint — re-run notebook 03
+3. Verify camera rename_map was applied correctly during training (key mismatch corrupts signal)
 
 ---
 
@@ -63,6 +61,6 @@ Options:
 | Model | LIBERO-Object | Source |
 |-------|--------------|--------|
 | SmolVLA base (zero-shot) | 0% | our eval |
-| SmolVLA-LoRA fine-tuned | ❓ TBD | blocked |
+| SmolVLA-LoRA fine-tuned | ❓ TBD | next session |
 | OpenVLA-7B official FT | 88.4% | Hejna et al. 2024 |
 | SmolVLA official FT (HuggingFaceVLA) | ~90%+ | published |
