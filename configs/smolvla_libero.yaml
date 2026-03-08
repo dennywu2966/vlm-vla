@@ -1,0 +1,33 @@
+# configs/smolvla_libero.yaml
+# SmolVLA LoRA fine-tune on LIBERO-Object — optimized for Kaggle T4 16GB
+policy:
+  path: lerobot/smolvla_base
+  optimizer_lr: 1.0e-3
+  scheduler_decay_lr: 1.0e-4
+  output_features: null
+  input_features: null
+
+dataset:
+  repo_id: HuggingFaceVLA/libero
+
+env:
+  type: libero
+  task: libero_object
+
+training:
+  batch_size: 8
+  steps: 20000
+  save_checkpoint: true
+  checkpoint_interval: 5000
+  log_interval: 100
+
+peft:
+  method_type: LORA
+  r: 32
+
+eval:
+  n_episodes: 10
+  batch_size: 1
+
+wandb:
+  enable: false

@@ -9,3 +9,6 @@ wandb/
 outputs/
 checkpoints/
 .env
+.pytest_cache/
+results/
+*.png
